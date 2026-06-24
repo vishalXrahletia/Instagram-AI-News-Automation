@@ -1,0 +1,61 @@
+name: Daily AI news pipeline
+
+on:
+  schedule:
+    - cron: "30 1 * * *"   # 07:00 IST daily - adjust for your timezone (this is UTC)
+  workflow_dispatch: {}     # lets you click "Run workflow" manually to test
+
+permissions:
+  contents: write   # needed so the workflow can commit rendered images back to the repo
+
+env:
+  PHASE: ${{ vars.PHASE }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+  AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+  AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+  AIRTABLE_TABLE_NAME: ${{ vars.AIRTABLE_TABLE_NAME }}
+  IG_USER_ID: ${{ secrets.IG_USER_ID }}
+  IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+  GITHUB_OWNER: ${{ github.repository_owner }}
+  GITHUB_REPO: ${{ github.event.repository.name }}
+  GITHUB_BRANCH: main
+  PAGE_NAME: ${{ vars.PAGE_NAME }}
+  STORIES_PER_RUN: ${{ vars.STORIES_PER_RUN }}
+  TRUSTED_TEMPLATES: ${{ vars.TRUSTED_TEMPLATES }}
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Discover + draft (Phase 1+)
+        run: python3 main.py discover
+
+      - name: Auto-generate trusted roundup (Phase 4 only)
+        run: python3 main.py roundup
+
+      - name: Render carousel images (Phase 2+)
+        run: python3 main.py render
+
+      - name: Commit rendered media
+        run: |
+          git config user.name "ai-news-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add media/
+          git diff --cached --quiet || git commit -m "Add rendered carousel media [skip ci]"
+          git push
+
+      - name: Publish queued posts (Phase 2+)
+        run: python3 main.py publish
+
+      - name: Refresh analytics (Phase 3+)
+        run: python3 main.py analytics
