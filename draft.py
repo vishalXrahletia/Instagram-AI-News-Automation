@@ -1,6 +1,7 @@
 """
 Turns raw news stories into Instagram-ready drafts (hook, caption, carousel
-outline) in the "explained simply" brand voice, by calling the Anthropic API.
+outline) in the "explained simply" brand voice, by calling the free-tier
+Gemini API.
 """
 
 import json
@@ -9,7 +10,7 @@ import httpx
 
 from config import Config
 
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 VOICE_INSTRUCTIONS = """You are the writer for an Instagram page called "{page_name}",
 positioned as "AI news explained simply" - not a repost account. Your voice: clear,
@@ -57,26 +58,32 @@ Stories:
 {stories_block}"""
 
 
-def _call_claude(prompt: str, system: str) -> str:
-    Config.require("ANTHROPIC_API_KEY")
+def _call_gemini(prompt: str, system: str) -> str:
+    Config.require("GEMINI_API_KEY")
+    url = GEMINI_URL_TEMPLATE.format(model=Config.GEMINI_MODEL)
     with httpx.Client(timeout=60) as client:
         resp = client.post(
-            ANTHROPIC_URL,
+            url,
             headers={
-                "x-api-key": Config.ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
+                "x-goog-api-key": Config.GEMINI_API_KEY,
+                "Content-Type": "application/json",
             },
             json={
-                "model": Config.CLAUDE_MODEL,
-                "max_tokens": 3000,
-                "system": system,
-                "messages": [{"role": "user", "content": prompt}],
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "systemInstruction": {"parts": [{"text": system}]},
+                "generationConfig": {
+                    "maxOutputTokens": 3000,
+                    "responseMimeType": "application/json",
+                },
             },
         )
         resp.raise_for_status()
         data = resp.json()
-    return data["content"][0]["text"]
+
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as e:
+        raise RuntimeError(f"Unexpected Gemini response shape: {data}") from e
 
 
 def _parse_drafts(raw_text: str) -> list[dict]:
@@ -89,20 +96,20 @@ def _parse_drafts(raw_text: str) -> list[dict]:
 
 
 def generate_drafts(stories: list[dict], preferred_angles: list[str] | None = None) -> list[dict]:
-    """Call Claude once with all stories batched together, return a list of
+    """Call Gemini once with all stories batched together, return a list of
     draft dicts: headline, source_link, hook, caption, carousel (list[str])."""
     if not stories:
         return []
 
     system = VOICE_INSTRUCTIONS.format(page_name=Config.PAGE_NAME)
     prompt = _build_prompt(stories, preferred_angles=preferred_angles)
-    raw_text = _call_claude(prompt, system)
+    raw_text = _call_gemini(prompt, system)
 
     try:
         return _parse_drafts(raw_text)
     except json.JSONDecodeError as e:
         raise RuntimeError(
-            f"Claude's response wasn't valid JSON ({e}). First 300 chars: {raw_text[:300]}"
+            f"Gemini's response wasn't valid JSON ({e}). First 300 chars: {raw_text[:300]}"
         )
 
 
@@ -131,10 +138,10 @@ def generate_roundup(stories: list[dict]) -> dict:
 Return ONLY valid JSON, no markdown fences, no commentary, structured as:
 {{"headline":"3 AI updates today","source_link":"","hook":"a single scroll-stopping hook line for the whole roundup, max 10 words","caption":"60-90 words summarizing all 3 updates and why they matter together","carousel":["slide 1: update #1 in one short line","slide 2: update #2 in one short line","slide 3: update #3 in one short line","slide 4: one-line closing takeaway tying them together"]}}"""
 
-    raw_text = _call_claude(prompt, system)
+    raw_text = _call_gemini(prompt, system)
     try:
         return _parse_drafts(raw_text)
     except json.JSONDecodeError as e:
         raise RuntimeError(
-            f"Claude's roundup response wasn't valid JSON ({e}). First 300 chars: {raw_text[:300]}"
+            f"Gemini's roundup response wasn't valid JSON ({e}). First 300 chars: {raw_text[:300]}"
         )
