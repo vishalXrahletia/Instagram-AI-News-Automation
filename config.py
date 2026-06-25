@@ -18,9 +18,9 @@ class Config:
     # 4 = + semi-autonomous posting for trusted templates.
     PHASE = int(os.environ.get("PHASE", "1"))
 
-    # --- Anthropic -------------------------------------------------------
-    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-    CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+    # --- Gemini (free tier - generativelanguage.googleapis.com) ----------
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
     # --- Airtable --------------------------------------------------------
     AIRTABLE_API_KEY = os.environ.get("AIRTABLE_API_KEY", "")
