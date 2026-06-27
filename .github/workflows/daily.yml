@@ -10,8 +10,8 @@ permissions:
 
 env:
   PHASE: ${{ vars.PHASE }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
   AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
   AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
   AIRTABLE_TABLE_NAME: ${{ vars.AIRTABLE_TABLE_NAME }}
