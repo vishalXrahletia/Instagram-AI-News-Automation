@@ -72,13 +72,20 @@ def _call_gemini(prompt: str, system: str) -> str:
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "systemInstruction": {"parts": [{"text": system}]},
                 "generationConfig": {
-                    "maxOutputTokens": 3000,
+                    "maxOutputTokens": 8192,
                     "responseMimeType": "application/json",
                 },
             },
         )
         resp.raise_for_status()
         data = resp.json()
+
+    finish_reason = data.get("candidates", [{}])[0].get("finishReason")
+    if finish_reason == "MAX_TOKENS":
+        raise RuntimeError(
+            "Gemini's response got cut off before finishing (hit the token limit). "
+            "Try lowering STORIES_PER_RUN, or raise maxOutputTokens in draft.py."
+        )
 
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"]
